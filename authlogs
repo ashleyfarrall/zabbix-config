@@ -1,0 +1,7 @@
+Problem: countunique(/secure/log[/var/log/auth.log,"Failed password for ([^\s]+) from (25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?http://149.170.11.240/zabbix/items.php?form=update&itemid=33353&context=template[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",,,skip,,],3600,,"5")=1  
+
+Recovery: nodata(/secure/log[/var/log/auth.log,"Failed password for ([^\s]+) from (25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)",,,skip,,],3600)=0
+
+Problem: {Secure:log[/var/log/auth.log,"([^\s]+) su: to root",,,skip,,].count(300)}=1
+
+Recovery: {Secure:log[/var/log/auth.log,"([^\s]+) su: to root",,,skip,,].nodata(300)}=0
