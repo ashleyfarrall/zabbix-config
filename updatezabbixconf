@@ -1,0 +1,22 @@
+$filePath = "C:\Program Files\Zabbix Agent 2\zabbix_agent2.conf"
+$zabbixServerIP = "10.4.1.112"
+$hostFQDN = [System.Net.Dns]::GetHostByName(($env:COMPUTERNAME)).HostName
+
+# Read the existing content of the file
+$currentContent = Get-Content -Path $filePath
+
+# Loop through each line of the file and update the Server and Hostname parameters
+$newContent = $currentContent | ForEach-Object {
+    if ($_ -match "^Server=") {
+        "Server=$zabbixServerIP"
+    }
+    elseif ($_ -match "^Hostname=") {
+        "Hostname=$hostFQDN"
+    }
+    else {
+        $_  # Leave other lines unchanged
+    }
+}
+
+# Write the new content to the file, overwriting existing content
+Set-Content -Path $filePath -Value $newContent -Force
