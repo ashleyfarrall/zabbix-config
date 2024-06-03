@@ -10,7 +10,6 @@
 # Construct the FQDN (Fully Qualified Domain Name) of the local computer
 $FQDN=(Get-WmiObject win32_computersystem).DNSHostName+"."+(Get-WmiObject win32_computersystem).Domain
 
-# Added Windows version checks for install of compatible Agent
 # Check the Windows version
 $windowsVersion = [System.Environment]::OSVersion.Version
 
