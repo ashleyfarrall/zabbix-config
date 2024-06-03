@@ -1,37 +1,52 @@
-##This script is used to install and update zabbix agent version 2 or version 1 via GPO
+## This script is used to install and update Zabbix agent version 2 or version 1 via GPO
 #
-##Author: https://github.com/Padl3xx
-##Modified by: https://github.com/ashleyfarrall
-##The script starts the GPO when the computer starts, it is applied to computers, not users.
-##Create a new GPO, go to, Computer Configuration -> Policies -> Windows Settings -> Scripts -> Startup -> Powershell Scripts -> Add.
-##Dont forget to link the GPO on specified OU :-)
-##It should probably work if you run the installation directly from your computer, but I haven't tried that.
+## Author: https://github.com/Padl3xx
+# Modified by https://github.com/ashleyfarrall
+## The script starts the GPO when the computer starts, it is applied to computers, not users.
+## Create a new GPO, go to, Computer Configuration -> Policies -> Windows Settings -> Scripts -> Startup -> Powershell Scripts -> Add.
+## Don't forget to link the GPO on specified OU :-)
+## It should probably work if you run the installation directly from your computer, but I haven't tried that.
 
 # Construct the FQDN (Fully Qualified Domain Name) of the local computer
-$FQDN=(Get-WmiObject win32_computersystem).DNSHostName+"."+(Get-WmiObject win32_computersystem).Domain
+$FQDN = (Get-CimInstance -ClassName Win32_ComputerSystem).DNSHostName + "." + (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
 
-# Check the Windows version
-$windowsVersion = [System.Environment]::OSVersion.Version
+# Check the Windows version and build number
+$OS = Get-CimInstance -ClassName Win32_OperatingSystem
+$OSVersion = $OS.Version
+$OSBuild = $OS.BuildNumber
 
-# Variables for Zabbix Agent 2
-$ZabbixInstallationMSI_Agent2 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent2\zabbix_agent2-6.4.11-windows-amd64-openssl.msi"
+# Check system architecture
+$Architecture = $OS.OSArchitecture
+
+# Variables for Zabbix Agent 2 (64-bit and 32-bit)
+$ZabbixInstallationMSI_Agent2_64 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent2\zabbix_agent2-6.4.11-windows-amd64-openssl.msi"
+$ZabbixInstallationMSI_Agent2_32 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent2\zabbix_agent2-6.4.11-windows-i386-openssl.msi"
 $ZabbixSoftwareName_Agent2 = "Zabbix Agent 2 (64-bit)"
 $ZabbixAgentVersion_Agent2 = "6.4.11"
 
-# Variables for Zabbix Agent 1
-$ZabbixInstallationMSI_Agent1 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent1\zabbix_agent-6.4.15-windows-amd64-openssl.msi"
+# Variables for Zabbix Agent 1 (64-bit and 32-bit)
+$ZabbixInstallationMSI_Agent1_64 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent1\zabbix_agent-6.4.15-windows-amd64-openssl.msi"
+$ZabbixInstallationMSI_Agent1_32 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent1\zabbix_agent-6.4.15-windows-i386-openssl.msi"
 $ZabbixSoftwareName_Agent1 = "Zabbix Agent (64-bit)"
-$ZabbixAgentVersion_Agent1 = "6.4.15"
+$ZabbixAgentVersion_Agent1 = "4.0.29"
 
-# Determine which agent to install
-if ($windowsVersion.Major -gt 10 -or ($windowsVersion.Major -eq 10 -and $windowsVersion.Build -ge 22000)) {
-    # Windows version is greater than Windows 10
-    $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent2
+# Determine which agent to install based on Windows version and architecture
+if ($OSVersion -ge "10.0" -and $OSBuild -ge 22000) {
+    # Windows version is greater than or equal to Windows 10
+    if ($Architecture -eq "64-bit") {
+        $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent2_64
+    } else {
+        $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent2_32
+    }
     $ZabbixSoftwareName = $ZabbixSoftwareName_Agent2
     $ZabbixAgentVersion = $ZabbixAgentVersion_Agent2
 } else {
     # Windows version is less than Windows 10
-    $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent1
+    if ($Architecture -eq "64-bit") {
+        $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent1_64
+    } else {
+        $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent1_32
+    }
     $ZabbixSoftwareName = $ZabbixSoftwareName_Agent1
     $ZabbixAgentVersion = $ZabbixAgentVersion_Agent1
 }
@@ -43,7 +58,7 @@ $ZabbixServerIP = "10.4.1.50"
 
 # Be careful what you change here
 
-$InstalledZabbixVersion = (Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $ZabbixSoftwareName }).Version
+$InstalledZabbixVersion = (Get-CimInstance -Class Win32_Product | Where-Object { $_.Name -eq $ZabbixSoftwareName }).Version
 
 # Extract the major version from the installed version
 $InstalledVersion = $InstalledZabbixVersion -replace "(\d+\.\d+\.\d+).*", '$1'
@@ -64,12 +79,12 @@ if ($InstalledVersion -lt $ZabbixAgentVersion) {
 }
 ## Function to update plugin and scripts folders if changes are detected
 #if (!(Test-Path -Path "$ZabbixInstallationFolder\zabbix_agent.d" -PathType Container)) {
-##if not exist, folder is created
+## if not exist, folder is created
 #    New-Item -ItemType Directory -Path "$ZabbixInstallationFolder\zabbix_agent.d" -Force
 #}
 #
 #if (!(Test-Path -Path "$ZabbixInstallationFolder\scripts" -PathType Container)) {
-##if not exist, folder is created
+## if not exist, folder is created
 #    New-Item -ItemType Directory -Path "$ZabbixInstallationFolder\scripts" -Force
 #}
 #
@@ -84,7 +99,7 @@ if ($InstalledVersion -lt $ZabbixAgentVersion) {
 #    foreach ($file in $sourceFiles) {
 #        $destinationFile = Join-Path -Path $destinationFolder -ChildPath $file.Name
 #        if (!(Test-Path -Path $destinationFile -PathType Leaf)) {
-#            #sync
+#            # sync
 #            Copy-Item -Path $file.FullName -Destination $destinationFolder
 #        }
 #    }
