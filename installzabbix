@@ -8,46 +8,45 @@
 ## It should probably work if you run the installation directly from your computer, but I haven't tried that.
 
 # Construct the FQDN (Fully Qualified Domain Name) of the local computer
-$FQDN = (Get-CimInstance -ClassName Win32_ComputerSystem).DNSHostName + "." + (Get-CimInstance -ClassName Win32_ComputerSystem).Domain
+$FQDN = (Get-WmiObject Win32_ComputerSystem).DNSHostName + "." + (Get-WmiObject Win32_ComputerSystem).Domain
 
-# Check the Windows version and build number
-$OS = Get-CimInstance -ClassName Win32_OperatingSystem
+# Check the Windows version
+$OS = Get-WmiObject -Class Win32_OperatingSystem
 $OSVersion = $OS.Version
-$OSBuild = $OS.BuildNumber
 
-# Check system architecture
-$Architecture = $OS.OSArchitecture
+# Check the OS architecture
+$OSArchitecture = (wmic os get osarchitecture | Select-String -Pattern "32-bit|64-bit").ToString().Trim()
 
-# Variables for Zabbix Agent 2 (64-bit and 32-bit)
-$ZabbixInstallationMSI_Agent2_64 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent2\zabbix_agent2-6.4.11-windows-amd64-openssl.msi"
-$ZabbixInstallationMSI_Agent2_32 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent2\zabbix_agent2-6.4.11-windows-i386-openssl.msi"
+# Variables for Zabbix Agent 2 (64-bit only)
+$ZabbixInstallationMSI_Agent2 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent2\zabbix_agent2-6.4.11-windows-amd64-openssl.msi"
 $ZabbixSoftwareName_Agent2 = "Zabbix Agent 2 (64-bit)"
 $ZabbixAgentVersion_Agent2 = "6.4.11"
 
 # Variables for Zabbix Agent 1 (64-bit and 32-bit)
 $ZabbixInstallationMSI_Agent1_64 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent1\zabbix_agent-6.4.15-windows-amd64-openssl.msi"
 $ZabbixInstallationMSI_Agent1_32 = "\\192.168.2.37\DFS_Share\Shared\GPO\Zabbix\agent1\zabbix_agent-6.4.15-windows-i386-openssl.msi"
-$ZabbixSoftwareName_Agent1 = "Zabbix Agent (64-bit)"
-$ZabbixAgentVersion_Agent1 = "4.0.29"
+$ZabbixSoftwareName_Agent1_64 = "Zabbix Agent (64-bit)"
+$ZabbixSoftwareName_Agent1_32 = "Zabbix Agent (32-bit)"
+$ZabbixAgentVersion_Agent1 = "6.4.15"
 
 # Determine which agent to install based on Windows version and architecture
-if ($OSVersion -ge "10.0" -and $OSBuild -ge 22000) {
+if ([version]$OSVersion -ge [version]"10.0") {
     # Windows version is greater than or equal to Windows 10
-    if ($Architecture -eq "64-bit") {
-        $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent2_64
-    } else {
-        $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent2_32
-    }
+    $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent2
     $ZabbixSoftwareName = $ZabbixSoftwareName_Agent2
     $ZabbixAgentVersion = $ZabbixAgentVersion_Agent2
 } else {
     # Windows version is less than Windows 10
-    if ($Architecture -eq "64-bit") {
+    if ($OSArchitecture -match "64-bit") {
         $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent1_64
-    } else {
+        $ZabbixSoftwareName = $ZabbixSoftwareName_Agent1_64
+    } elseif ($OSArchitecture -match "32-bit") {
         $ZabbixInstallationMSI = $ZabbixInstallationMSI_Agent1_32
+        $ZabbixSoftwareName = $ZabbixSoftwareName_Agent1_32
+    } else {
+        Write-Output "Unknown OS architecture: $OSArchitecture"
+        exit
     }
-    $ZabbixSoftwareName = $ZabbixSoftwareName_Agent1
     $ZabbixAgentVersion = $ZabbixAgentVersion_Agent1
 }
 
@@ -58,14 +57,18 @@ $ZabbixServerIP = "10.4.1.50"
 
 # Be careful what you change here
 
-$InstalledZabbixVersion = (Get-CimInstance -Class Win32_Product | Where-Object { $_.Name -eq $ZabbixSoftwareName }).Version
+$InstalledZabbixVersion = (Get-WmiObject -Class Win32_Product | Where-Object { $_.Name -eq $ZabbixSoftwareName }).Version
 
-# Extract the major version from the installed version
-$InstalledVersion = $InstalledZabbixVersion -replace "(\d+\.\d+\.\d+).*", '$1'
+if ([string]::IsNullOrEmpty($InstalledZabbixVersion)) {
+    $InstalledVersion = [version]"0.0.0"
+} else {
+    # Extract the major version from the installed version
+    $InstalledVersion = [version]$InstalledZabbixVersion
+}
 
 $Arguments = "SERVER=$ZabbixServerIP SERVERACTIVE=$ZabbixServerIP HOSTMETADATA=Windows HOSTNAME=$FQDN /qn"
 
-if ($InstalledVersion -lt $ZabbixAgentVersion) {
+if ($InstalledVersion -lt [version]$ZabbixAgentVersion) {
     # The installed version is different from the desired version, so perform the installation or update
 
     if (Test-Path $ZabbixInstallationMSI) {
